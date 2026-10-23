@@ -103,35 +103,56 @@ Direct parsing reveals the complete wear and cut distribution for all 16 cases:
 
 ## 5. Critical Technical Anomalies Identified for Pipeline Safety
 
-1. **Signal Length Anomaly in Case 12, Run 1**:
-   - 166 runs contain exactly 9,000 points (36 seconds at 250 Hz).
-   - Cut index 94 (`case=12, run=1`) contains **15,360 points**.
-   - *Requirement for P2*: Feature extraction functions must compute summary statistics over the full array (or slice a uniform window e.g. `[:9000]`), and not assume `len(arr) == 9000` as a hard constraint.
+1. **Extreme Sensor Overflow in Case 2, Run 1 (Index 17)**:
+   - Contains numerical values exceeding $10^{19}\text{ V}$ up to $1.58 \times 10^{29}\text{ V}$ across `vib_table`, `vib_spindle`, `smcAC`, and `smcDC`, and $10^{34}\text{ V}$ in `AE_table`.
+   - Represents bit-corruption or ADC transmission overflow in the original laboratory recording.
+   - *Action*: Flagged as `EXTREME_SPIKE_vib_table,vib_spindle,smcAC,smcDC`. Marked `is_valid_run = False` and `training_eligible = False`.
 
-2. **Non-Consecutive Run Numbering**:
-   - In Case 3, recorded run identifiers are `[1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16]` (runs 4 and 13 were omitted during the original experiment).
-   - In Case 14, run identifiers are `[1, 2, 3, 4, 5, 6, 8, 9, 10]` (run 7 omitted).
-   - *Requirement for P2 & P3*: Use the actual `run` field from the struct as `cut_index` so data matches the physical records, rather than assuming a continuous 1..N index.
+2. **Signal Length & Sensor Failure in Case 12, Run 1 (Index 94)**:
+   - 166 runs contain exactly 9,000 points. Cut index 94 (`case=12, run=1`) contains **15,360 points**.
+   - `AE_table` and `AE_spindle` are flatlined at $0.0000\text{ V}$ (std $\approx 0.00004\text{ V}$). Vibration and current channels exhibit synthetic maximum values of exactly $2771.1897\text{ V}$. Wear measurement is missing (`NaN`).
+   - *Action*: Flagged as `VARIABLE_LENGTH_15360; AE_FLATLINE_ae_table,ae_spindle; EXTREME_SPIKE_vib_table,vib_spindle,smcAC,smcDC`. Marked `is_valid_run = False` and `training_eligible = False`.
 
-3. **Case 6 Premature Termination**:
-   - Case 6 was terminated after cut 1 with zero wear ($V_B = 0.00$). It cannot be used alone for progressive RUL validation, but can be included as a zero-wear training sample.
+3. **Table Acoustic Emission Dropout in Case 7, Run 4 (Index 119)**:
+   - `AE_table` drops abruptly to sensor noise floor (mean $0.0216\text{ V}$, std $0.00060\text{ V}$), while adjacent runs (Run 3: mean $0.1057\text{ V}$; Run 5: mean $0.1464\text{ V}$) and all other channels (`vib_table`, `AE_spindle`, `smcAC`, `smcDC`) behave normally.
+   - Indicates a temporary table AE transducer or cabling disconnection during that cut.
+   - *Action*: Flagged as `AE_FLATLINE_ae_table`. Excluded from model training (`training_eligible = False`).
 
-4. **Wear Threshold Validity Confirmed**:
-   - **15 out of 16 cases** reach and exceed $0.20\text{ mm}$ and $0.30\text{ mm}$.
-   - Max wear across runs reaches $1.53\text{ mm}$.
-   - This validates that a configurable default threshold in the range of **$0.20 - 0.30\text{ mm}$** is meaningful and operationally realistic for this dataset.
+4. **Premature Run Termination in Case 6, Run 1 (Index 115)**:
+   - Case 6 was terminated after cut 1 ($V_B = 0.00\text{ mm}$), providing no wear progression. Table AE channel is also at noise floor ($0.0207\text{ V}$, std $0.00047\text{ V}$).
+   - *Action*: Flagged as `SINGLE_CUT_CASE; AE_FLATLINE_ae_table`. Excluded from model training (`training_eligible = False`).
+
+5. **Non-Consecutive Run Numbering**:
+   - Case 3 run identifiers: `[1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16]` (runs 4 and 13 omitted).
+   - Case 14 run identifiers: `[1, 2, 3, 4, 5, 6, 8, 9, 10]` (run 7 omitted).
+   - *Action*: Physical `run` identifiers are preserved in `cut_index` and `run_num`.
 
 ---
 
-## 6. Recommendations for Task 4B (Feature Extraction by P2)
+## 6. Documented Exclusion Policy & Certified Populations
 
-1. **Feature Schema Refinement**:
-   Extract 8 primary summary statistics per sensor channel:
-   - AC & DC Current: `current_ac_rms`, `current_dc_rms`
-   - Spindle & Table Vibration: `vib_table_rms`, `vib_spindle_rms`, `vib_table_kurtosis`, `vib_table_crest`
-   - Acoustic Emission: `ae_table_rms`, `ae_spindle_rms`
-2. **Missing Label Representation**:
-   Export unmeasured cuts with empty string in CSV (loading as `NaN` in pandas and `null` in JSON), exactly matching [`shared/api_contract.md`](../shared/api_contract.md).
-3. **Generalization Strategy**:
-   - Replicate Holdout (Train on Cases 1–8, Test on Cases 9–16).
-   - Leave-One-Tool-Out (LOTO) cross-validation across all 15 progressive cases.
+To ensure rigorous data science without silently deleting raw data:
+- **Total Population**: 167 raw runs remain present in `artifacts/cut_features.csv`.
+- **Valid Signal Population (`is_valid_run == True`)**: **165 cuts** (excludes Case 2 Run 1 and Case 12 Run 1).
+- **Training Population (`training_eligible == True`)**: **143 cuts**.
+  - Excludes 21 cuts with unmeasured wear (`measured_wear_vb is NaN`).
+  - Excludes 2 severely corrupt cuts (Case 2 Run 1 and Case 12 Run 1).
+  - Excludes 1 flatlined dropout cut with measured wear (Case 7 Run 4).
+  - Excludes 1 single-cut isolated case (Case 6 Run 1).
+- **Demo Selection (`demo_eligible == True`)**: Cases 1, 3, 9, 10, 11 provide clean progressive wear without channel dropouts or sequence anomalies.
+
+---
+
+## 7. Python Environment & Dependency Observations
+
+The local development environment uses **Python 3.13.6**:
+- **Installed Packages**: `numpy==2.3.5`, `scipy==1.17.1`, `scikit-learn==1.5.2`, `pandas==2.2.3`, `fastapi==0.128.8`, `pydantic==2.13.5`, `pytest==8.4.2`.
+- **Observation on Requirements Files**:
+  The initial `requirements.txt` files specified Python 3.10/3.11/3.12 versions (`numpy==1.26.2`, `scikit-learn==1.3.2`). Python 3.13 changed CPython internal C-APIs; prebuilt binary wheels for older scikit-learn 1.3.2 are not available for Python 3.13.
+- **Recommendation**:
+  For developers using Python 3.13+, use compatible modern pins:
+  - `numpy>=2.0.0`
+  - `scipy>=1.14.0`
+  - `scikit-learn>=1.5.0`
+  - `pandas>=2.2.0`
+  For developers using Python 3.10–3.12, the original pinned versions in `requirements.txt` remain supported. Do not execute automated package upgrades across contributor machines without team consensus.
