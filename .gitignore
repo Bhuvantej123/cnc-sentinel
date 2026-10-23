@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing & Linting
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node & Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.vite/
+
+# Machine Learning Artifacts & Raw Datasets
+# Preserve directory structure via README.md, ignore binary/raw files
+data/raw/
+data/processed/
+data/*
+!data/README.md
+!data/.gitkeep
+artifacts/*
+!artifacts/README.md
+!artifacts/.gitkeep
+*.joblib
+*.pkl
+*.h5
+*.onnx
+*.pt
+*.pth
+*.parquet
+*.feather
+
+# IDE & Editor files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
