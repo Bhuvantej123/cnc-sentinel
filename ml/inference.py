@@ -112,6 +112,16 @@ def predict(
     """
     # 1. Check if model and required artifacts are verified
     if not is_model_verified() or not CUT_FEATURES_PATH.exists():
+        if not CUT_FEATURES_PATH.exists():
+            explanation = (
+                "Verified feature table (cut_features.csv) has not yet been generated "
+                "from the NASA Milling dataset. Predictions and RUL are currently unavailable."
+            )
+        else:
+            explanation = (
+                "ML model weights (tool_wear_regressor.joblib) have not yet been trained and verified. "
+                "Predictions and RUL are currently unavailable."
+            )
         return {
             "tool_id": tool_id,
             "cut_index": cut_index,
@@ -120,11 +130,7 @@ def predict(
             "uncertainty_interval": None,
             "estimated_rul_cuts": None,
             "recommendation": RecommendationStatus.MODEL_UNAVAILABLE.value,
-            "explanation": (
-                "ML model weights or verified feature table (cut_features.csv) "
-                "have not yet been generated from the NASA Milling dataset. "
-                "Predictions and RUL are currently unavailable."
-            ),
+            "explanation": explanation,
             "model_status": "UNAVAILABLE",
         }
 
