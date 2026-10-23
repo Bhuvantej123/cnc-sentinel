@@ -1,5 +1,10 @@
-numpy==1.26.2
-pandas==2.1.4
-scipy==1.11.4
-scikit-learn==1.3.2
-joblib==1.3.2
+# Requires Python >= 3.11 (numpy 2.3 and scipy 1.17). Verified on Python 3.13.6.
+# These pins must match the environment that trains the model: joblib artifacts
+# record package_versions in model_metadata.json, and ml/inference.py refuses a
+# model serialized under a different scikit-learn version.
+numpy==2.3.5
+pandas==2.2.3
+scipy==1.17.1
+scikit-learn==1.5.2
+joblib==1.4.2
+pytest==8.4.2
